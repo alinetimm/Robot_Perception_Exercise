@@ -1,0 +1,43 @@
+{
+  "unidade": "mm",
+  "referencial": "origem no 1o canto interno do tabuleiro; x direita, y baixo, z para dentro da folha",
+  "tabuleiro": {
+    "cantos_internos": [
+      8,
+      5
+    ],
+    "quadrado_mm": 20.0
+  },
+  "marcador": {
+    "dicionario": "DICT_4X4_50",
+    "id": 0,
+    "lado_mm": 80.0,
+    "cantos_no_referencial_do_alvo_mm": [
+      [
+        30.0,
+        128.0,
+        0.0
+      ],
+      [
+        110.0,
+        128.0,
+        0.0
+      ],
+      [
+        110.0,
+        208.0,
+        0.0
+      ],
+      [
+        30.0,
+        208.0,
+        0.0
+      ]
+    ],
+    "ordem_cantos": "TL, TR, BR, BL (mesma do cv2.aruco)"
+  },
+  "pagina": {
+    "formato": "A4",
+    "dpi_geracao": 600
+  }
+}

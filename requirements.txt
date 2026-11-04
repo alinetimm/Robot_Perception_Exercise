@@ -1,0 +1,9 @@
+opencv-contrib-python>=4.8
+numpy
+scipy
+pandas
+pyarrow
+matplotlib
+pyyaml
+pillow
+pytest
