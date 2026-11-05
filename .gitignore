@@ -1,0 +1,11 @@
+# Dados e vídeos (fora do git, ver CLAUDE.md)
+data/
+
+# Ambiente Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Gravações da demo
+video/*.mp4
