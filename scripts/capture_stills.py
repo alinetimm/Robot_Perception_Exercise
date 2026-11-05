@@ -4,10 +4,11 @@ Mode: 1280x960 MJPG with exposure, gain and white balance locked (the C270 has a
 fixed-focus lens and exposes no focus control; a camera that has one gets it locked).
 
 Live view: detected board, estimated tilt, and a 4x4 coverage map whose cells turn
-green once a saved photo has corners there. SPACE saves an uncompressed PNG to
-data/raw/E0_stills/ only if the whole board is visible and the image is sharp and
-still; otherwise the reason is shown. Q or ESC quits. Photos already in the folder
-are counted on start and never overwritten.
+green once a saved photo has corners there. A "Faca agora" line says what to do next:
+the yellow cell to reach, or the tilt direction still missing. SPACE saves an
+uncompressed PNG to data/raw/E0_stills/ only if the whole board is visible and the
+image is sharp and still; otherwise the reason is shown. Q or ESC quits. Photos
+already in the folder are counted on start and never overwritten.
 
 The tilt shown uses a nominal K (--focal-px, principal point at the image centre),
 because the real K is what these photos will produce. calib/relatorio.md gives the
@@ -31,11 +32,18 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from alvo.referencia import cantos_tabuleiro, carregar_geometria  # noqa: E402
-from calib.calibrate import board_sharpness, coverage_grid, tilt_and_normal  # noqa: E402
+from calib.calibrate import (  # noqa: E402
+    MIN_NORMAL_CHANGE, SIDE_TILT_DEG, SIDES, board_sharpness, coverage_grid, tilt_and_normal, tilt_side)
 
 WIDTH, HEIGHT, FPS = 1280, 960, 30
 GRID = 4
 TILT_TARGET_DEG = 30.0
+PHOTO_TARGET = 25
+TILTED_TARGET = 9
+SIDE_TARGET = 4
+REPEAT_MOVE_PX = 15.0
+DARK_BOARD, BRIGHT_BOARD = 70, 225   # mean gray inside the board region
+SIDE_LABEL = {"esquerda": "esquerdo", "direita": "direito", "topo": "de cima", "base": "de baixo"}
 WINDOW = "capture_stills"
 GREEN, RED, YELLOW = (0, 200, 0), (0, 0, 255), (0, 255, 255)
 
@@ -53,6 +61,9 @@ class Check:
     tilt_deg: float | None = None
     sharpness: float | None = None
     speed: float | None = None
+    normal: np.ndarray | None = None
+    distance_mm: float | None = None
+    light: str = ""
     problems: list = field(default_factory=list)
 
     @property
@@ -64,9 +75,26 @@ def nominal_camera(focal_px, size=(WIDTH, HEIGHT)):
     return np.array([[focal_px, 0, size[0] / 2], [0, focal_px, size[1] / 2], [0, 0, 1]])
 
 
-def estimate_tilt(corners, objp, K):
-    ok, rvec, _ = cv2.solvePnP(objp, corners, K, None)
-    return tilt_and_normal(rvec)[0] if ok else None
+def estimate_pose(corners, objp, K):
+    """Tilt (deg), board normal and distance (mm) from a nominal K."""
+    ok, rvec, tvec = cv2.solvePnP(objp, corners, K, None)
+    if not ok:
+        return None, None, None
+    tilt, normal = tilt_and_normal(rvec)
+    return tilt, normal, float(np.linalg.norm(tvec))
+
+
+def light_hint(gray, corners):
+    """Non-blocking advice about the exposure, from the brightness of the board region."""
+    pts = corners.reshape(-1, 2)
+    x0, y0 = np.floor(pts.min(0)).astype(int)
+    x1, y1 = np.ceil(pts.max(0)).astype(int)
+    level = float(gray[max(y0, 0):y1, max(x0, 0):x1].mean())
+    if level < DARK_BOARD:
+        return "alvo escuro: aumente --exposure ou a luz"
+    if level > BRIGHT_BOARD:
+        return "alvo estourado: reduza --exposure ou tire da luz direta"
+    return ""
 
 
 def evaluate(gray, geo, K, limits, previous=None, dt_s=None):
@@ -80,7 +108,8 @@ def evaluate(gray, geo, K, limits, previous=None, dt_s=None):
     if pts.min() < limits.margin or pts[:, 0].max() > w - 1 - limits.margin \
             or pts[:, 1].max() > h - 1 - limits.margin:
         check.problems.append("tabuleiro colado na borda")
-    check.tilt_deg = estimate_tilt(check.corners, geo["objp_tabuleiro"], K)
+    check.tilt_deg, check.normal, check.distance_mm = estimate_pose(check.corners, geo["objp_tabuleiro"], K)
+    check.light = light_hint(gray, check.corners)
     check.sharpness = board_sharpness(gray, check.corners)
     if check.sharpness < limits.min_sharpness:
         check.problems.append("imagem borrada")
@@ -108,22 +137,61 @@ class Session:
             if corners is None:
                 print(f"Aviso: tabuleiro não detectado em {path.name}; ela não entra na contagem.")
                 continue
-            self.add(corners, estimate_tilt(corners, geo["objp_tabuleiro"], K))
+            tilt, normal, _ = estimate_pose(corners, geo["objp_tabuleiro"], K)
+            self.add(corners, tilt, normal)
 
-    def add(self, corners, tilt_deg):
-        self.photos.append({"corners": corners, "tilt_deg": tilt_deg})
+    def add(self, corners, tilt_deg, normal):
+        self.photos.append({"corners": corners, "tilt_deg": tilt_deg, "normal": normal})
 
     def save(self, frame, check):
         path = self.folder / f"still_{self.next_index:04d}.png"
         if not cv2.imwrite(str(path), frame, [cv2.IMWRITE_PNG_COMPRESSION, 0]):
             raise SystemExit(f"Could not write {path}")
         self.next_index += 1
-        self.add(check.corners, check.tilt_deg)
+        self.add(check.corners, check.tilt_deg, check.normal)
         return path
 
     @property
     def n_tilted(self):
         return sum(p["tilt_deg"] is not None and p["tilt_deg"] > TILT_TARGET_DEG for p in self.photos)
+
+    @property
+    def sides(self):
+        """Photos per side of the board closest to the camera."""
+        count = dict.fromkeys(SIDES, 0)
+        for p in self.photos:
+            if p["tilt_deg"] is not None and p["tilt_deg"] > SIDE_TILT_DEG:
+                count[tilt_side(p["normal"])] += 1
+        return count
+
+    def is_repeat(self, check):
+        """True if a saved photo already has about the same position and orientation."""
+        for p in self.photos:
+            moved = np.linalg.norm(p["corners"] - check.corners, axis=2).mean()
+            if moved < REPEAT_MOVE_PX and p["normal"] is not None and check.normal is not None \
+                    and np.linalg.norm(p["normal"][:2] - check.normal[:2]) < MIN_NORMAL_CHANGE:
+                return True
+        return False
+
+    def next_step(self):
+        """What to do next, and the empty cell to reach (row, col) if that is the task."""
+        grid = self.grid
+        empty = [(r, c) for r in range(GRID) for c in range(GRID) if not grid[r, c]]
+        if empty:
+            centre = (GRID - 1) / 2
+            cell = max(empty, key=lambda rc: (abs(rc[0] - centre) + abs(rc[1] - centre), -rc[0], -rc[1]))
+            if not grid[-1].any():
+                return "vire a placa de cabeca para baixo e leve o tabuleiro a celula amarela", cell
+            return "leve o tabuleiro ate a celula amarela", cell
+        sides = self.sides
+        side = min(SIDES, key=lambda name: sides[name])
+        if sides[side] < SIDE_TARGET:
+            return f"incline com o lado {SIDE_LABEL[side]} mais perto da camera ({sides[side]}/{SIDE_TARGET})", None
+        if self.n_tilted < TILTED_TARGET:
+            return f"incline mais de {TILT_TARGET_DEG:.0f} graus ({self.n_tilted}/{TILTED_TARGET})", None
+        if len(self.photos) < PHOTO_TARGET:
+            return f"varie posicao e inclinacao ({len(self.photos)}/{PHOTO_TARGET} fotos)", None
+        return "meta atingida: aperte Q para sair", None
 
     @property
     def grid(self):
@@ -134,11 +202,20 @@ class Session:
         return float((self.grid > 0).mean())
 
 
+def banner(view, lines):
+    """Translucent text band, so the top of the image stays visible."""
+    bar = view[:12 + 30 * len(lines)]
+    bar[:] = (bar * 0.4).astype(np.uint8)
+    for i, (text, color) in enumerate(lines):
+        cv2.putText(view, text, (10, 28 + 30 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA)
+
+
 def draw(frame, check, session, pattern, message):
     """Return an annotated copy; the frame itself stays clean for saving."""
     h, w = frame.shape[:2]
     view = frame.copy()
     tint = view.copy()
+    step, target_cell = session.next_step()
     grid = session.grid
     xs = [w * i // GRID for i in range(GRID + 1)]
     ys = [h * i // GRID for i in range(GRID + 1)]
@@ -151,26 +228,33 @@ def draw(frame, check, session, pattern, message):
         cv2.line(view, (x, 0), (x, h), (255, 255, 255), 1)
     for y in ys[1:-1]:
         cv2.line(view, (0, y), (w, y), (255, 255, 255), 1)
+    if target_cell is not None:
+        r, c = target_cell
+        cv2.rectangle(view, (xs[c] + 3, ys[r] + 3), (xs[c + 1] - 3, ys[r + 1] - 3), YELLOW, 4)
     if check.corners is not None:
         cv2.drawChessboardCorners(view, pattern, check.corners, True)
 
     def fmt(value, spec):
         return "--" if value is None else format(value, spec)
 
+    sides = session.sides
     lines = [
         (f"Fotos: {len(session.photos)}   >{TILT_TARGET_DEG:.0f} graus: {session.n_tilted}   "
-         f"Cobertura: {session.coverage:.0%}", (255, 255, 255)),
+         f"Cobertura: {session.coverage:.0%}   Lado perto: esq {sides['esquerda']} dir {sides['direita']} "
+         f"cima {sides['topo']} baixo {sides['base']}", (255, 255, 255)),
         (f"Inclinacao: {fmt(check.tilt_deg, '.0f')} graus   Nitidez: {fmt(check.sharpness, '.0f')}   "
          f"Velocidade: {fmt(check.speed, '.2f')} px/quadro", (255, 255, 255)),
         ("PRONTO: aperte espaco" if check.ok else "NAO SALVA: " + ", ".join(check.problems),
          GREEN if check.ok else RED),
+        ("Faca agora: " + step, YELLOW),
     ]
+    if check.corners is not None and session.is_repeat(check):
+        lines.append(("Pose repetida: mude antes de salvar", YELLOW))
+    if check.light:
+        lines.append((check.light, YELLOW))
     if message:
         lines.append((message, YELLOW))
-    bar = view[:12 + 30 * len(lines)]   # translucent, so the top cells stay visible
-    bar[:] = (bar * 0.4).astype(np.uint8)
-    for i, (text, color) in enumerate(lines):
-        cv2.putText(view, text, (10, 28 + 30 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA)
+    banner(view, lines)
     return view
 
 
@@ -229,7 +313,14 @@ def lock_controls(device, exposure, gain, white_balance):
     print(f"Travado: exposição {exposure}, ganho {gain}, balanço de branco {white_balance} K.")
 
 
-def open_camera(device):
+def find_camera():
+    """The /dev/videoN number changes when the camera is plugged back in; the by-id link does not."""
+    links = sorted(Path("/dev/v4l/by-id").glob("*-video-index0"))
+    return str(links[0].resolve()) if links else "/dev/video0"
+
+
+def open_camera(device, raw_jpeg=False):
+    """Open the camera in the calibrated mode. With raw_jpeg, read() returns the JPEG bytes."""
     cap = cv2.VideoCapture(device, cv2.CAP_V4L2)
     if not cap.isOpened():
         raise SystemExit(f"Could not open {device}")
@@ -241,6 +332,8 @@ def open_camera(device):
     fourcc = int(cap.get(cv2.CAP_PROP_FOURCC)).to_bytes(4, "little").decode()
     if size != (WIDTH, HEIGHT) or fourcc != "MJPG":
         raise SystemExit(f"Camera mode is {size} {fourcc}, expected {WIDTH}x{HEIGHT} MJPG.")
+    if raw_jpeg:
+        cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)
     return cap
 
 
@@ -287,12 +380,12 @@ def run(cap, session, geo, K, limits):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--device", default="/dev/video0")
+    ap.add_argument("--device", help="video device (default: first camera found)")
     ap.add_argument("--out", type=Path, default=ROOT / "data/raw/E0_stills")
     ap.add_argument("--exposure", type=int, default=150, help="exposure_time_absolute, in units of 100 us")
     ap.add_argument("--gain", type=int, default=8)
     ap.add_argument("--white-balance", type=int, default=4000, help="colour temperature (K)")
-    ap.add_argument("--focal-px", type=float, default=1400, help="nominal focal length for the live tilt")
+    ap.add_argument("--focal-px", type=float, default=1420, help="nominal focal length for the live tilt")
     ap.add_argument("--min-sharpness", type=float, default=Limits.min_sharpness,
                     help="min Laplacian variance inside the board region")
     ap.add_argument("--max-speed", type=float, default=Limits.max_speed,
@@ -303,6 +396,8 @@ def main(argv=None):
     K = nominal_camera(a.focal_px)
     session = Session(a.out, geo, K)
     print(f"{len(session.photos)} fotos já em {a.out}.")
+    a.device = a.device or find_camera()
+    print(f"Câmera: {a.device}")
     cap = open_camera(a.device)
     try:
         lock_controls(a.device, a.exposure, a.gain, a.white_balance)

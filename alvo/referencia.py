@@ -1,15 +1,14 @@
 """Detecção do alvo com ordem de cantos garantida.
 
-O tabuleiro tem 9 x 6 quadrados (8 x 5 cantos internos). Por ser assimétrico,
-o detector devolve sempre a mesma ordem, mas essa ordem pode começar pelo lado
-oposto ao referencial de geometria_alvo.json. Para não depender da versão do
-OpenCV, `cantos_tabuleiro` confere a cor do quadrado externo junto ao primeiro
-canto: no alvo impresso, o quadrado do canto superior esquerdo é preto. Se
-estiver branco, a ordem é invertida.
+O tabuleiro tem 9 x 6 quadrados (8 x 5 cantos internos). O detector pode devolver
+a ordem começando pelo lado oposto ao referencial de geometria_alvo.json. Com um
+número ímpar de quadrados somados nos dois eixos, girar o tabuleiro 180° inverte a
+cor de todas as casas. `_ordem_invertida` compara as casas internas entre si, sem
+limiar global: elas estão sempre na imagem e não dependem da luz da cena.
 
 Uso típico:
     from alvo.referencia import carregar_geometria, cantos_tabuleiro, cantos_marcador
-    geo = carregar_geometria()
+    geo = carregar_geometria()                 # carregar_geometria_medida() para estimar pose
     c = cantos_tabuleiro(gray, geo)            # (N,1,2) na ordem de geo["objp_tabuleiro"]
     m = cantos_marcador(gray, geo)             # (4,1,2) TL,TR,BR,BL ou None
 """
@@ -34,18 +33,32 @@ def carregar_geometria(caminho=AQUI / "geometria_alvo.json") -> dict:
     return g
 
 
-def _quadrado_externo_e_preto(gray, c, nx):
-    """Amostra o centro do quadrado externo diagonal ao primeiro canto."""
-    p0, p_diag = c[0, 0], c[nx + 1, 0]          # canto (0,0) e canto (1,1)
-    centro = p0 + 0.5 * (p0 - p_diag)            # meio do quadrado externo (-1,-1)..(0,0)
-    x, y = int(round(centro[0])), int(round(centro[1]))
+def carregar_geometria_medida(caminho=AQUI.parent / "calib" / "alvo_medido.json") -> dict:
+    """Geometria nominal com os pontos 3D medidos por calib/calibrate.py --fotos.
+
+    Use esta versão para pose: a folha não é perfeitamente plana. Se a folha for
+    descolada ou a placa trocada, a calibração precisa ser refeita.
+    """
+    g = carregar_geometria()
+    medido = json.loads(Path(caminho).read_text(encoding="utf-8"))
+    g["objp_tabuleiro"] = np.array(medido["cantos_tabuleiro_mm"], np.float32)
+    if medido["cantos_marcador_mm"] is not None:
+        g["objp_marcador"] = np.array(medido["cantos_marcador_mm"], np.float32)
+    return g
+
+
+def _ordem_invertida(gray, c, nx, ny):
+    """True se a ordem começa no lado oposto: as casas de (i + j) par devem ser pretas."""
+    grade = c.reshape(ny, nx, 2)
+    centros = (grade[:-1, :-1] + grade[:-1, 1:] + grade[1:, :-1] + grade[1:, 1:]) / 4
     h, w = gray.shape[:2]
-    if not (0 <= x < w and 0 <= y < h):
-        return None
-    viz = gray[max(0, y - 2):y + 3, max(0, x - 2):x + 3]
-    ref_claro = float(np.percentile(gray, 90))
-    ref_escuro = float(np.percentile(gray, 10))
-    return float(viz.mean()) < (ref_claro + ref_escuro) / 2
+    soma = [[], []]
+    for j in range(ny - 1):
+        for i in range(nx - 1):
+            x, y = np.rint(centros[j, i]).astype(int)
+            viz = gray[max(0, y - 1):min(h, y + 2), max(0, x - 1):min(w, x + 2)]
+            soma[(i + j) % 2].append(float(viz.mean()))
+    return np.mean(soma[0]) > np.mean(soma[1])
 
 
 def cantos_tabuleiro(gray, geo, refinar=True):
@@ -54,8 +67,7 @@ def cantos_tabuleiro(gray, geo, refinar=True):
     if not ok:
         return None
     c = c.reshape(-1, 1, 2).astype(np.float32)
-    preto = _quadrado_externo_e_preto(gray, c, nx)
-    if preto is False:
+    if _ordem_invertida(gray, c, nx, ny):
         c = c[::-1].copy()
     if refinar:
         c = cv2.cornerSubPix(gray, c, (5, 5), (-1, -1), (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 40, 1e-3))

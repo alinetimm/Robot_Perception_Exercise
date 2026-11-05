@@ -17,6 +17,7 @@ A pergunta continua a mesma: **a covariância que um pipeline de marcador fiduci
 | Variante sem marcador (features + homografia) | Opcional | Só se sobrar tempo na semana 3 |
 | Simulação no Gazebo | Fora | Não cabe em 4 semanas; vira trabalho futuro |
 | Vídeos de campo do Hydrone | Fora | Sem ground truth; trabalho futuro |
+| Experimento de brilho (E4) | Fora | Gravação complexa: o plástico impediu a detecção do tabuleiro; trabalho futuro |
 
 O deslocamento de escopo deve aparecer no paper como limitação: o experimento é em bancada, com a câmera fixa e o alvo movido à mão. A geometria relativa (câmera vendo uma plataforma que inclina) é a mesma do pouso, mas não há água, vento nem reflexo especular real.
 
@@ -36,7 +37,7 @@ Os resultados podem confirmar ou refutar cada uma. Refutar H1 também é resulta
 
 **Alvo.** Imprima `alvo/alvo_A4.pdf` **em 100% (tamanho real)**. Confira a régua de 100 mm com uma régua de verdade; se a impressão tiver escalado, ajuste `quadrado_mm` e `lado_mm` em `alvo/geometria_alvo.json`. Cole a folha num papelão grosso ou numa placa de espuma, sem bolhas nem ondulações. O tabuleiro (8 × 5 cantos internos, 20 mm) é a referência; o ArUco (80 mm, `DICT_4X4_50`, id 0) faz o papel do convés.
 
-**Iluminação.** Luz difusa e constante. Para o experimento de brilho, use uma luminária direta e plastifique a folha ou coloque-a num saco plástico transparente.
+**Iluminação.** Luz difusa e constante.
 
 ## 4. Protocolo de gravação
 
@@ -48,7 +49,6 @@ Grave em 30 fps, na resolução calibrada. Nomeie os arquivos como `E<n>_<descri
 | E1 | Alvo **parado** em 5 poses diferentes (distâncias de 0,5 a 1,5 m, inclinações de 0° a 60°), 10 s cada | ~1 min | σ dos cantos (ruído de detecção) |
 | E2 | Movimento lento: inclinar a placa de ±30° em roll e pitch, como um convés balançando | 2 × 60 s | Avaliação principal |
 | E3 | Inclinações fortes (60° a 75°) e passagens pela pose frontal | 60 s | H2 |
-| E4 | Mesmo movimento de E2 com brilho da luminária sobre o alvo plastificado | 60 s | Degradação por reflexo |
 | E5 | Oclusão real: cobrir o ArUco com a mão por 1 a 2 s, várias vezes, deixando o tabuleiro visível | 60 s | Demo do rastreamento |
 
 O tabuleiro precisa estar visível em todos os quadros avaliados, porque é dele que vem a referência.
@@ -84,7 +84,7 @@ O tabuleiro precisa estar visível em todos os quadros avaliados, porque é dele
 1. Montagem: alvo, câmera e um quadro com os eixos projetados.
 2. Pipeline (diagrama).
 3. Erro de rotação e translação ao longo do tempo (E2), com a banda de ±2σ prevista.
-4. NEES por quadro com as linhas de χ²₆ a 95%; ANEES por condição (E2, E3, E4) e por modelo de σ.
+4. NEES por quadro com as linhas de χ²₆ a 95%; ANEES por condição (E2, E3) e por modelo de σ.
 5. NEES e erro em função da inclinação do alvo (H2).
 6. Oclusão: erro e NEES em função dos quadros desde a perda (H3).
 
@@ -98,7 +98,7 @@ O tabuleiro precisa estar visível em todos os quadros avaliados, porque é dele
 | I. Introduction | 0,6 | Pouso UAV-USV, por que a precisão da observação importa para a camada de decisão; contribuições |
 | II. Related Work | 0,6 | Pouso visual em plataformas móveis (Polvara 2018, Baca 2019, Morales-Rodríguez 2023); variância de marcadores (Adámek 2023); PnP planar e ambiguidade (IPPE) |
 | III. Method | 1,4 | Modelo de câmera e calibração; PnP do marcador e da referência; Jacobiana local e Σ; NEES; rastreamento LK |
-| IV. Experimental Setup | 0,7 | Câmera, calibração (RMS), alvo, protocolo E0 a E5 |
+| IV. Experimental Setup | 0,7 | Câmera, calibração (RMS), alvo, protocolo E0 a E5, sem E4 |
 | V. Results | 1,4 | Figuras 3 a 6 e a tabela |
 | VI. Discussion | 0,6 | Onde a covariância falha e por quê; limites da bancada; o que isso implica para a tese |
 | VII. Conclusion | 0,2 | |
@@ -121,8 +121,8 @@ Regras de escrita: as de `CLAUDE.md` (seção "Escrita").
 
 | Semana | Datas | Entregas |
 |---|---|---|
-| 1 | 04/11 a 10/11 | Alvo impresso e montado; câmera escolhida e calibrada; gravações E1 a E5; pipeline por quadro (M0 a M3) |
-| 2 | 11/11 a 17/11 | Covariância e NEES validados no sintético; σ de E1; avaliação de E2 a E4; primeiras figuras (M4, M5) |
+| 1 | 04/11 a 10/11 | Alvo impresso e montado; câmera escolhida e calibrada; gravações E1, E2, E3 e E5; pipeline por quadro (M0 a M3) |
+| 2 | 11/11 a 17/11 | Covariância e NEES validados no sintético; σ de E1; avaliação de E2 e E3; primeiras figuras (M4, M5) |
 | 3 | 18/11 a 24/11 | Oclusão sintética + rastreamento LK; demo ao vivo gravada (M6, M7) |
 | 4 | 25/11 a 02/12 | Figuras finais, paper, vídeo; folga para refazer gravações (M8, M9) |
 

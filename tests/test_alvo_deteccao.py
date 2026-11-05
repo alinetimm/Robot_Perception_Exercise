@@ -2,8 +2,11 @@
 from pathlib import Path
 
 import cv2
+import numpy as np
+import pytest
 
 from alvo.referencia import cantos_marcador, cantos_tabuleiro, carregar_geometria
+from render_target import BOARD_CENTER, TargetRenderer
 
 PREVIEW = Path(__file__).resolve().parents[1] / "alvo" / "alvo_A4_preview.png"
 
@@ -27,3 +30,26 @@ def test_detects_marker_id_0():
     corners = cantos_marcador(gray, geo)
     assert corners is not None
     assert corners.shape == (4, 1, 2)
+
+
+def _rotated_about_normal(renderer, tilt, axis, center):
+    """Pose of the board turned upside down in its own plane."""
+    R, _ = renderer.pose(tilt, axis, center)
+    R = R @ cv2.Rodrigues(np.array([0.0, 0.0, np.pi]))[0]
+    ray = np.linalg.inv(renderer.K) @ np.array([*center, 1.0])
+    return R, 500 * ray - R @ BOARD_CENTER
+
+
+@pytest.mark.parametrize("upside_down", [False, True])
+@pytest.mark.parametrize("tilt,axis", [(0, 0), (35, 30), (60, 100)])
+def test_corner_order_survives_uneven_light(upside_down, tilt, axis):
+    """The old global threshold flipped the order under a light gradient."""
+    renderer = TargetRenderer(np.array([[1400.0, 0, 640], [0, 1400, 480], [0, 0, 1]]))
+    center = (640, 480)
+    R, t = _rotated_about_normal(renderer, tilt, axis, center) if upside_down else renderer.pose(tilt, axis, center)
+    image = renderer.render(R, t).astype(np.float32)
+    ramp = np.linspace(0.45, 1.0, image.shape[1], dtype=np.float32)
+    image = np.clip(image * ramp + 70, 0, 255).astype(np.uint8)   # washed-out blacks, shaded side
+    corners = cantos_tabuleiro(image, renderer.geo)
+    expected, _ = cv2.projectPoints(renderer.geo["objp_tabuleiro"], cv2.Rodrigues(R)[0], t, renderer.K, None)
+    assert np.abs(corners - expected).max() < 2

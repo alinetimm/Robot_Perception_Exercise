@@ -136,3 +136,66 @@ def test_main_loop_saves_on_space_and_quits(renderer, still, tmp_path, monkeypat
     assert len(session.photos) == 1
     assert (tmp_path / "still_0001.png").exists()
     assert len(shown) == 4
+
+
+def _edge_lengths(corners):
+    grid = corners.reshape(5, 8, 2)
+    return (np.linalg.norm(grid[-1, 0] - grid[0, 0]), np.linalg.norm(grid[-1, -1] - grid[0, -1]),
+            np.linalg.norm(grid[0, -1] - grid[0, 0]), np.linalg.norm(grid[-1, -1] - grid[-1, 0]))
+
+
+@pytest.mark.parametrize("axis", [0, 90, 180, 270])
+def test_side_label_is_the_side_that_looks_bigger(renderer, axis):
+    """A closer edge is longer in the image, whatever the sign conventions say."""
+    image = renderer.render(*renderer.pose(35, axis))
+    check = cs.evaluate(image, renderer.geo, K, LIMITS)
+    left, right, top, bottom = _edge_lengths(check.corners)
+    expected = {"esquerda": left > right, "direita": right > left, "topo": top > bottom, "base": bottom > top}
+    side = cs.tilt_side(check.normal)
+    assert expected[side]
+    assert abs({"esquerda": left, "direita": right, "topo": top, "base": bottom}[side]
+               - {"esquerda": right, "direita": left, "topo": bottom, "base": top}[side]) > 5
+
+
+class StubSession(cs.Session):
+    def __init__(self, grid, sides=None, tilted=0, photos=0):
+        self._grid, self._sides, self._tilted = np.array(grid), sides or dict.fromkeys(cs.SIDES, 9), tilted
+        self.photos = [None] * photos
+
+    grid = property(lambda self: self._grid)
+    sides = property(lambda self: self._sides)
+    n_tilted = property(lambda self: self._tilted)
+
+
+def test_next_step_order():
+    full = np.ones((4, 4), int)
+    no_bottom = full.copy()
+    no_bottom[3] = 0
+    step, cell = StubSession(no_bottom).next_step()
+    assert "cabeca para baixo" in step and cell[0] == 3
+    gap = full.copy()
+    gap[0, 3] = 0
+    step, cell = StubSession(gap).next_step()
+    assert cell == (0, 3) and "amarela" in step
+    step, cell = StubSession(full, {**dict.fromkeys(cs.SIDES, 9), "topo": 1}).next_step()
+    assert "de cima" in step and cell is None
+    assert "incline mais" in StubSession(full, tilted=2).next_step()[0]
+    assert "fotos" in StubSession(full, tilted=20, photos=3).next_step()[0]
+    assert "meta atingida" in StubSession(full, tilted=20, photos=30).next_step()[0]
+
+
+def test_repeated_pose_is_flagged_and_a_new_tilt_is_not(renderer, tmp_path):
+    session = cs.Session(tmp_path, renderer.geo, K)
+    first = renderer.render(*renderer.pose(10, 0, distance_mm=900))
+    check = cs.evaluate(first, renderer.geo, K, LIMITS, first_corners(first, renderer), DT)
+    session.save(cv2.cvtColor(first, cv2.COLOR_GRAY2BGR), check)
+    assert session.is_repeat(check)
+    tilted = renderer.render(*renderer.pose(35, 0, distance_mm=900))
+    assert not session.is_repeat(cs.evaluate(tilted, renderer.geo, K, LIMITS))
+
+
+def test_light_hint():
+    corners = np.array([[[100, 100]], [[300, 300]]], np.float32)
+    assert "escuro" in cs.light_hint(np.full((400, 400), 40, np.uint8), corners)
+    assert "estourado" in cs.light_hint(np.full((400, 400), 240, np.uint8), corners)
+    assert cs.light_hint(np.full((400, 400), 150, np.uint8), corners) == ""
