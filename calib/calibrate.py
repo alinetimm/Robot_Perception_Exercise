@@ -40,6 +40,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from alvo.referencia import cantos_marcador, cantos_tabuleiro, carregar_geometria  # noqa: E402
+from src.pose import solve_in_front  # noqa: E402
 
 RADIAL_K1K2 = cv2.CALIB_FIX_K3 | cv2.CALIB_ZERO_TANGENT_DIST
 TILT_WARN_DEG = 30.0
@@ -193,7 +194,7 @@ def reprojection_rms(frames, points, K, dist, key="corners"):
 
 def solve_board_poses(frames, shape, K, dist):
     for f in frames:
-        _, f["rvec"], f["tvec"] = cv2.solvePnP(shape, f["corners"], K, dist)
+        _, f["rvec"], f["tvec"] = solve_in_front(shape, f["corners"], K, dist)
 
 
 def measure_marker(frames, K, dist):
@@ -256,7 +257,7 @@ def tilt_and_normal(rvec):
 
 def add_pose_features(frames, objp, K, dist, size):
     for f in frames:
-        ok, rvec, tvec = cv2.solvePnP(objp, f["corners"], K, dist)
+        ok, rvec, tvec = solve_in_front(objp, f["corners"], K, dist)
         if not ok:
             f["feature"] = None
             continue

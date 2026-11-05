@@ -48,8 +48,8 @@ Distorção (k1, k2, p1, p2, k3) = 0.073977, 0.074325, 0.000000, 0.000000, 0.000
 
 ## Validação em fotos fora do ajuste
 
-Erro de reprojeção do tabuleiro: 0.218 a 0.384 px nos 5 grupos (RMS do ajuste: 0.221 px).
-Erro do marcador previsto pela pose do tabuleiro: 2.55 px com a posição nominal, 0.60 px com a posição medida.
+Erro de reprojeção do tabuleiro: 0.218 a 0.243 px nos 5 grupos (RMS do ajuste: 0.221 px).
+Erro do marcador previsto pela pose do tabuleiro: 2.56 px com a posição nominal, 0.59 px com a posição medida.
 
 ## Forma medida do alvo
 
