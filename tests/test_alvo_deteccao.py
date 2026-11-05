@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import pytest
 
-from alvo.referencia import cantos_marcador, cantos_tabuleiro, carregar_geometria
+from alvo.referencia import _refinar_pelas_bordas, cantos_marcador, cantos_tabuleiro, carregar_geometria
 from render_target import BOARD_CENTER, TargetRenderer
 
 PREVIEW = Path(__file__).resolve().parents[1] / "alvo" / "alvo_A4_preview.png"
@@ -30,6 +30,27 @@ def test_detects_marker_id_0():
     corners = cantos_marcador(gray, geo)
     assert corners is not None
     assert corners.shape == (4, 1, 2)
+
+
+@pytest.mark.parametrize("tilt,axis", [(0, 0), (30, 40), (55, 120)])
+def test_edge_refinement_finds_the_true_marker_corners(tilt, axis):
+    renderer = TargetRenderer(np.array([[1400.0, 0, 640], [0, 1400, 480], [0, 0, 1]]))
+    R, t = renderer.pose(tilt, axis, (640, 380), 650)
+    image = renderer.render(R, t)
+    expected, _ = cv2.projectPoints(renderer.geo["objp_marcador"], cv2.Rodrigues(R)[0], t, renderer.K, None)
+    # One pixel of the preview page is about 0.4 px here, so this image cannot rank the
+    # methods below that level. The ranking comes from the real photos (calib/relatorio.md).
+    error = np.linalg.norm(cantos_marcador(image, renderer.geo) - expected, axis=2)
+    assert error.max() < 0.6
+
+
+def test_marker_covered_at_an_edge_keeps_the_subpix_corners():
+    """A hand over one edge must not break the detection."""
+    renderer = TargetRenderer(np.array([[1400.0, 0, 640], [0, 1400, 480], [0, 0, 1]]))
+    image = renderer.render(*renderer.pose(10, 0, (640, 380), 650))
+    corners = cantos_marcador(image, renderer.geo, refinar_bordas=False)
+    flat = np.full_like(image, 128)
+    assert _refinar_pelas_bordas(flat, corners) is None
 
 
 def _rotated_about_normal(renderer, tilt, axis, center):

@@ -24,7 +24,8 @@ from src.pose import load_camera, marker_model, process_frame  # noqa: E402
 
 RAW = ROOT / "data/raw"
 OUT = ROOT / "data/proc/frames"
-VIDEOS = {"E1": "E1_take05.mjpg", "E1_far": "E1_take04.mjpg", "E2": "E2.webm", "E3": "E3.webm", "E5": "E5.webm"}
+VIDEOS = {"E1": "E1_take05.mjpg", "E1_far": "E1_take04.mjpg", "E1_webm": "E1.webm", "E2": "E2.webm",
+          "E3": "E3.webm", "E5": "E5.webm"}
 CHUNK_FRAMES = 1500
 
 

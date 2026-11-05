@@ -6,3 +6,6 @@ data/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Gravações da demo
+video/*.mp4

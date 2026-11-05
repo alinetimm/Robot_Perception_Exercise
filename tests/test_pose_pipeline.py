@@ -136,3 +136,16 @@ def test_process_frame_on_a_rendered_image(tilt, axis):
 def test_process_frame_without_a_target():
     row = process_frame(np.full((960, 1280), 128, np.uint8), GEO, MODEL, CAM)
     assert not row["board_ok"] and not row["marker_ok"] and "err" not in row
+
+
+def test_marker_speed_uses_only_the_previous_frame():
+    import pandas as pd
+
+    from src.frames import marker_speed
+    columns = {f"mc{i}_{a}": [0.0, 3.0, 3.0, 9.0, 12.0] for i in range(4) for a in "x"}
+    columns.update({f"mc{i}_y": [0.0] * 5 for i in range(4)})
+    df = pd.DataFrame({"frame": [0, 1, 2, 4, 5], "time_s": np.array([0, 1, 2, 4, 5]) / 30, **columns})
+    speed = marker_speed(df)
+    assert speed[1] == pytest.approx(3) and speed[2] == pytest.approx(0)
+    assert speed[0] == pytest.approx(3)    # no past frame: next known value
+    assert speed[3] == pytest.approx(3)    # gap in the frames: next known value

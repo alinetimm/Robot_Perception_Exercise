@@ -49,7 +49,7 @@ Distorção (k1, k2, p1, p2, k3) = 0.073977, 0.074325, 0.000000, 0.000000, 0.000
 ## Validação em fotos fora do ajuste
 
 Erro de reprojeção do tabuleiro: 0.218 a 0.243 px nos 5 grupos (RMS do ajuste: 0.221 px).
-Erro do marcador previsto pela pose do tabuleiro: 2.56 px com a posição nominal, 0.59 px com a posição medida.
+Erro do marcador previsto pela pose do tabuleiro: 3.09 px com a posição nominal, 0.51 px com a posição medida.
 
 ## Forma medida do alvo
 
@@ -63,7 +63,7 @@ Salva em `alvo_medido.json`. Desvio da folha em relação ao plano nominal (z, m
   0.15  -0.52  -1.50  -2.29  -2.25  -2.34  -1.38   0.00
 ```
 
-Marcador: deslocamento de 1.57 a 2.28 mm da posição nominal; lados medidos de 79.42 a 79.57 mm.
+Marcador: deslocamento de 2.11 a 2.83 mm da posição nominal; lados medidos de 79.51 a 79.84 mm.
 
 ## Cobertura
 
