@@ -362,7 +362,7 @@ def write_target(path, source, shape, marker):
     path.write_text(json.dumps(data, indent=1), encoding="utf-8")
 
 
-def write_yaml(path, source, size, rms, K, dist, n_frames, max_tilt, warnings):
+def write_yaml(path, source, size, rms, K, dist, n_frames, max_tilt, warnings, extra=None):
     data = {
         "source": source,
         "image_width": int(size[0]),
@@ -374,6 +374,7 @@ def write_yaml(path, source, size, rms, K, dist, n_frames, max_tilt, warnings):
         "K": K.tolist(),
         "dist_k1_k2_p1_p2_k3": dist.ravel().tolist(),
         "quality_warnings": warnings,
+        **(extra or {}),
     }
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
@@ -596,7 +597,20 @@ def main():
         marker = measure_marker(chosen, K, dist)
         write_target(a.alvo_medido, source_rel, shape, marker)
         target = (shape, marker, geo["objp_marcador"], geo["padrao"][0])
-    write_yaml(a.yaml, source_rel, size, rms, K, dist, len(chosen), max_tilt, warnings)
+    extra = {"candidates": int(len(still)), "stability_sd_fx_fy_cx_cy_px": [float(v) for v in boot]}
+    if validation:
+        extra["validation"] = {
+            "held_out_rms_px": [float(min(validation["held_out"])), float(max(validation["held_out"]))],
+            "marker_nominal_rms_px": float(np.mean(validation["marker_nominal"])) if validation["marker_nominal"] else None,
+            "marker_measured_rms_px": float(np.mean(validation["marker_measured"])) if validation["marker_measured"] else None}
+    if target:
+        shape_mm, marker_mm, nominal_mm = target[:3]
+        extra["target"] = {"max_bend_mm": float(np.abs(shape_mm[:, 2]).max())}
+        if marker_mm is not None:
+            marker_sides = np.linalg.norm(marker_mm - np.roll(marker_mm, -1, axis=0), axis=1)
+            extra["target"].update(marker_shift_mm=[float(v) for v in np.linalg.norm(marker_mm - nominal_mm, axis=1)],
+                                   marker_side_mm=[float(marker_sides.min()), float(marker_sides.max())])
+    write_yaml(a.yaml, source_rel, size, rms, K, dist, len(chosen), max_tilt, warnings, extra)
     write_report(a.report, a, source_rel, size, stats, rejected_blur, rejected_moving, blur_thr, len(still),
                  rows, rms, K, dist, std, boot, grid, warnings, sides, validation, target)
 

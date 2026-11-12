@@ -122,6 +122,8 @@ def main():
                                "marker": float(frames.marker_ok.mean()),
                                "both": float((frames.board_ok & frames.marker_ok).mean())},
                  "error": {"median_rot_deg": float(table.err_rot_deg.median()),
+                           "median_distance_mm": float(table.distance_mm.median()),
+                           "max_tilt_deg": float(table.tilt_deg.max()),
                            "median_trans_mm": float(table.err_trans_mm.median()),
                            "second_closer": float(table.second_closer.mean())},
                  "fixed": summarise(table.nees_fixed.to_numpy()),

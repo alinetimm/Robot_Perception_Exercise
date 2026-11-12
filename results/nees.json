@@ -25,6 +25,8 @@
    },
    "error": {
     "median_rot_deg": 0.5165975964982017,
+    "median_distance_mm": 795.4200202193222,
+    "max_tilt_deg": 58.54922177426167,
     "median_trans_mm": 2.2149152277805735,
     "second_closer": 0.02553632374451487
    },
@@ -237,6 +239,8 @@
    },
    "error": {
     "median_rot_deg": 2.455361640694254,
+    "median_distance_mm": 1666.727768525489,
+    "max_tilt_deg": 65.33471109697568,
     "median_trans_mm": 8.883519872669012,
     "second_closer": 0.2791023842917251
    },
@@ -464,6 +468,8 @@
    },
    "error": {
     "median_rot_deg": 0.5192546580790156,
+    "median_distance_mm": 653.5750900053142,
+    "max_tilt_deg": 47.59172562096789,
     "median_trans_mm": 1.4408747601911363,
     "second_closer": 0.004508566275924256
    },
@@ -676,6 +682,8 @@
    },
    "error": {
     "median_rot_deg": 0.4086538319304088,
+    "median_distance_mm": 625.9014028388369,
+    "max_tilt_deg": 68.18514161548623,
     "median_trans_mm": 1.3072545994543399,
     "second_closer": 0.006493506493506494
    },
@@ -903,6 +911,8 @@
    },
    "error": {
     "median_rot_deg": 0.3093068350647403,
+    "median_distance_mm": 677.0580533140621,
+    "max_tilt_deg": 47.14893041525361,
     "median_trans_mm": 0.873293521454924,
     "second_closer": 0.014767932489451477
    },

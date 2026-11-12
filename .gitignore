@@ -9,3 +9,6 @@ __pycache__/
 
 # Gravações da demo
 video/*.mp4
+
+# Pacote gerado para o Overleaf
+paper/overleaf.zip

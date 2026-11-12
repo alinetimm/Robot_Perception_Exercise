@@ -49,7 +49,7 @@ SETUP_PHOTO = "data/raw/E0_stills/still_0222.png"
 SETUP_MARGIN_PX = 75                 # around the board and the marker
 SETUP_ELLIPSE_GAIN = 5.0             # stated in the caption
 ROWS = ["E1", "E2", "E3", "E5", "E1_far"]
-ROW_LABELS = {"E1": "E1 (fit)", "E2": "E2", "E3": "E3", "E5": "E5", "E1_far": "Far, 1.66 m"}
+ROW_LABELS = {"E1": "E1 (fit)", "E2": "E2", "E3": "E3", "E5": "E5", "E1_far": "Far"}
 
 plt.rcParams.update({
     "font.family": "sans-serif", "font.sans-serif": ["Liberation Sans", "DejaVu Sans"], "font.size": 8,
