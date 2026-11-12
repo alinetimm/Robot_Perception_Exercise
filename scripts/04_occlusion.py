@@ -184,6 +184,7 @@ def main():
         else:
             start += 1
     print("E5 real occlusions:", real_windows, flush=True)
+    synthetic_windows = window_id - real_windows
 
     df = pd.DataFrame(records)
     df["fit"] = (df.video == "E2") & (df.window % 2 == 0)
@@ -196,7 +197,8 @@ def main():
     df.loc[found.index, "trans_mm"] = np.linalg.norm(errors[:, 3:], axis=1)
 
     growth = {}
-    result = {"windows": WINDOWS, "methods": {}}
+    result = {"windows": WINDOWS, "methods": {},
+              "counts": {"synthetic_windows": int(synthetic_windows), "real_occlusions": int(real_windows)}}
     for method in METHODS:
         here = (found.method == method).to_numpy()
         fit = here & found.fit.to_numpy()

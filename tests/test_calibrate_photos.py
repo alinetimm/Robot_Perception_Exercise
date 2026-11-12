@@ -141,3 +141,12 @@ def test_mixed_resolution_stops(photos, tmp_path):
     done = calibrate_cli(tmp_path, "--fotos", str(folder))
     assert done.returncode != 0
     assert "one camera mode" in done.stderr
+
+
+def test_yaml_and_report_carry_the_validation(photos, tmp_path):
+    """The paper reads these fields; the report must still be written after them."""
+    assert calibrate_cli(tmp_path, "--fotos", str(photos)).returncode == 0
+    cam = yaml.safe_load((tmp_path / "camera.yaml").read_text(encoding="utf-8"))
+    assert len(cam["validation"]["held_out_rms_px"]) == 2
+    assert cam["target"]["marker_side_mm"][0] <= cam["target"]["marker_side_mm"][1]
+    assert "Lado do alvo mais perto" in (tmp_path / "relatorio.md").read_text(encoding="utf-8")

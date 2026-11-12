@@ -825,5 +825,9 @@
     }
    }
   }
+ },
+ "counts": {
+  "synthetic_windows": 105,
+  "real_occlusions": 7
  }
 }
